@@ -19,7 +19,7 @@ bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "rules_gitlab", version = "0.2.0")
 local_path_override(
     module_name = "rules_gitlab",
-    path = "../fastverk/repos/rules_gitlab",
+    path = "../rules_gitlab",
 )
 
 # Python toolchain for the rules_gitlab validate/emit py_binaries that
