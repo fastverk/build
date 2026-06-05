@@ -1,0 +1,63 @@
+# fastverk_build — the shared build/CI toolkit (D14 of the workspace
+# reorg). Two surfaces today: Starlark-generated CI (re-exports
+# rules_gitlab's gitlab_ci) and a base pinned-Bazel OCI runner-image
+# macro. Per-org images (e.g. savvi/aion/build) build FROM this base.
+module(
+    name = "fastverk_build",
+    version = "0.0.1",
+)
+
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
+bazel_dep(name = "rules_oci", version = "2.2.6")
+bazel_dep(name = "rules_pkg", version = "1.0.1")
+
+# CI-generation surface (gitlab_ci / gitlab_job / gitlab_reference).
+# 0.2.0 ships gitlab_ci but isn't on the registry yet, so override to
+# the in-tree checkout until the Stage-2 publish.
+bazel_dep(name = "rules_gitlab", version = "0.2.0")
+local_path_override(
+    module_name = "rules_gitlab",
+    path = "../fastverk/repos/rules_gitlab",
+)
+
+# Python toolchain for the rules_gitlab validate/emit py_binaries that
+# gitlab_ci's gate runs. rules_gitlab declares its python toolchain as a
+# dev dep (root-only), so a consuming root module must register one;
+# 3.12 matches the rules_gitlab tooling lock (and the host has 3.13/3.11
+# for rules_uv's lock parser).
+bazel_dep(name = "rules_python", version = "1.7.0")
+python = use_extension(
+    "@rules_python//python/extensions:python.bzl",
+    "python",
+    dev_dependency = True,
+)
+python.toolchain(python_version = "3.12", is_default = True)
+
+bazel_dep(name = "stardoc", version = "0.7.2", dev_dependency = True)
+
+# distroless/cc base for the runner image — glibc + ca-certs, so
+# bazelisk can fetch the pinned bazel over TLS at runtime. Same base
+# (+ digest) fastverk service images use.
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "fastverk_build_distroless_cc",
+    digest = "sha256:6714977f9f02632c31377650c15d89a7efaebf43bab0f37c712c30fc01edb973",
+    image = "gcr.io/distroless/cc-debian12",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64/v8",
+    ],
+)
+use_repo(
+    oci,
+    "fastverk_build_distroless_cc",
+    "fastverk_build_distroless_cc_linux_amd64",
+    "fastverk_build_distroless_cc_linux_arm64_v8",
+)
+
+# Pinned bazelisk binaries (amd64 + arm64) layered into the runner
+# image; the macro selects by target CPU.
+bazelisk = use_extension("//build:extensions.bzl", "bazelisk")
+use_repo(bazelisk, "bazelisk_amd64", "bazelisk_arm64")

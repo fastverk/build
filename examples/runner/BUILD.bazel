@@ -1,0 +1,37 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//build:defs.bzl", "bazel_runner_image", "gitlab_ci", "gitlab_job")
+
+package(default_visibility = ["//visibility:public"])
+
+# A base bazel CI runner image (bazelisk pinned to bazel 7.4.1 on
+# distroless/cc). `bazel run :runner_tarball` loads it locally;
+# `bazel run :runner_push -- --tag <sha>` pushes it.
+bazel_runner_image(
+    name = "runner",
+    bazel_version = "7.4.1",
+    repository = "ghcr.io/fastverk/bazel-runner",
+)
+
+# CI-generation surface, re-exported from rules_gitlab — a pipeline that
+# runs on the runner image above. Auto-wires :ci_validate.
+gitlab_ci(
+    name = "ci",
+    stages = ["test"],
+    jobs = {
+        "test": gitlab_job(
+            stage = "test",
+            image = "ghcr.io/fastverk/bazel-runner:latest",
+            script = ["bazel test //..."],
+        ),
+    },
+)
+
+build_test(
+    name = "smoke",
+    targets = [
+        ":runner",
+        ":runner_tarball",
+        ":ci",
+        ":ci_validate",
+    ],
+)
