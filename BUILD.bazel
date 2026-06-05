@@ -1,1 +1,64 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//build:defs.bzl", "gitlab_ci", "gitlab_job")
+
+package(default_visibility = ["//visibility:public"])
+
 exports_files(["MODULE.bazel"])
+
+_BOOTSTRAP_BAZELISK = [
+	"apt-get update",
+	"apt-get install -y --no-install-recommends ca-certificates curl git",
+	"curl -fsSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64",
+	"chmod +x /usr/local/bin/bazelisk",
+	"ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel",
+]
+
+_GHCR_LOGIN = [
+	"test -n \"$GHCR_USERNAME\" && test -n \"$GHCR_TOKEN\" || { echo \"Set GHCR_USERNAME and GHCR_TOKEN in GitLab CI variables.\" >&2; exit 1; }",
+	"mkdir -p \"$HOME/.docker\"",
+	"AUTH=$(printf '%s:%s' \"$GHCR_USERNAME\" \"$GHCR_TOKEN\" | base64 -w0)",
+	"printf '{\"auths\":{\"ghcr.io\":{\"auth\":\"%s\"}}}\\n' \"$AUTH\" > \"$HOME/.docker/config.json\"",
+]
+
+gitlab_ci(
+	name = "ci",
+	stages = ["test", "publish"],
+	jobs = {
+		"smoke": gitlab_job(
+			stage = "test",
+			image = "debian:12-slim",
+			before_script = _BOOTSTRAP_BAZELISK,
+			script = ["bazel test //examples/runner:smoke"],
+		),
+		"publish_bazel_runner": gitlab_job(
+			stage = "publish",
+			image = "debian:12-slim",
+			before_script = _BOOTSTRAP_BAZELISK,
+			script = _GHCR_LOGIN + [
+				"bazel run //examples/runner:runner_push -- --tag latest",
+				"bazel run //examples/runner:runner_push -- --tag $CI_COMMIT_SHA",
+			],
+			rules = [{"if": "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"}],
+		),
+		"publish_github_actions_runner": gitlab_job(
+			stage = "publish",
+			image = "debian:12-slim",
+			before_script = _BOOTSTRAP_BAZELISK,
+			script = _GHCR_LOGIN + [
+				"bazel run //examples/runner:github_actions_runner_push -- --tag latest",
+				"bazel run //examples/runner:github_actions_runner_push -- --tag $CI_COMMIT_SHA",
+			],
+			rules = [{"if": "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"}],
+		),
+	},
+	write_to = ".gitlab-ci.yml",
+)
+
+build_test(
+	name = "ci_smoke",
+	targets = [
+		":ci",
+		":ci_validate",
+		":ci.update",
+	],
+)

@@ -28,6 +28,12 @@ gitlab_ci(
 it's current; `:ci_validate` schema-checks it. See `rules_gitlab` for
 the full `gitlab_ci` API.
 
+For `fastverk/build` itself, the generated root `.gitlab-ci.yml` uses a
+bootstrap image (`debian:12-slim`) to install bazelisk first. The
+published runner images are distroless, so they are build artifacts to
+publish and consume later, not the image a GitLab job should use to
+bootstrap itself.
+
 ## Runner image
 
 ```python
@@ -57,6 +63,10 @@ is the **base** image other runner images build FROM (e.g.
 The GitHub Actions wrapper is a named publishing surface for the shared
 fastverk linux runner image. Hosted macOS jobs remain separate where CI
 needs platform coverage.
+
+For GitLab publication, set `GHCR_USERNAME` and `GHCR_TOKEN` CI
+variables so the bootstrap publish jobs can write `~/.docker/config.json`
+for `oci_push` / `crane`.
 
 ## Install
 

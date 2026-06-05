@@ -19,15 +19,26 @@ github_actions_runner_image(
     bazel_version = "7.4.1",
 )
 
-# CI-generation surface, re-exported from rules_gitlab — a pipeline that
-# runs on the runner image above. Auto-wires :ci_validate.
+_BOOTSTRAP_BAZELISK = [
+    "apt-get update",
+    "apt-get install -y --no-install-recommends ca-certificates curl git",
+    "curl -fsSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64",
+    "chmod +x /usr/local/bin/bazelisk",
+    "ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel",
+]
+
+# CI-generation surface, re-exported from rules_gitlab. The published
+# runner image is distroless, so a GitLab pipeline must bootstrap from a
+# shell-full image first rather than selecting the runner image as the
+# executor image directly.
 gitlab_ci(
     name = "ci",
     stages = ["test"],
     jobs = {
         "test": gitlab_job(
             stage = "test",
-            image = "ghcr.io/fastverk/bazel-runner:latest",
+            image = "debian:12-slim",
+            before_script = _BOOTSTRAP_BAZELISK,
             script = ["bazel test //..."],
         ),
     },
