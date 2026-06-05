@@ -9,6 +9,9 @@ Two surfaces:
     layers a pinned bazelisk onto distroless/cc. Per-org runner images
     (e.g. savvi/aion/build) build FROM this, adding their own
     toolchain/auth layers; CI jobs run on the result.
+    * **GitHub Actions runner image** — `github_actions_runner_image`, a
+        named wrapper over `bazel_runner_image` for the shared fastverk
+        GitHub Actions linux runner image.
 """
 
 load("@rules_gitlab//gitlab:defs.bzl", _gitlab_ci = "gitlab_ci", _gitlab_job = "gitlab_job", _gitlab_reference = "gitlab_reference")
@@ -101,3 +104,28 @@ def bazel_runner_image(
             repository = repository,
             visibility = visibility,
         )
+
+def github_actions_runner_image(
+        name,
+        bazel_version = None,
+        repository = "ghcr.io/fastverk/github-actions-bazel-runner",
+        base = "@fastverk_build_distroless_cc",
+        env = None,
+        labels = None,
+        visibility = None):
+    """Shared fastverk GitHub Actions linux runner image.
+
+    This is a named wrapper over `bazel_runner_image` so repos can share
+    one published image reference for linux CI. The current image is the
+    minimal bazelisk-on-base layer; reusable workflows may still choose
+    hosted macOS runners for platform coverage.
+    """
+    bazel_runner_image(
+        name = name,
+        bazel_version = bazel_version,
+        base = base,
+        repository = repository,
+        env = env,
+        labels = labels,
+        visibility = visibility,
+    )

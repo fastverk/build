@@ -1,5 +1,5 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//build:defs.bzl", "bazel_runner_image", "gitlab_ci", "gitlab_job")
+load("//build:defs.bzl", "bazel_runner_image", "github_actions_runner_image", "gitlab_ci", "gitlab_job")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,6 +10,13 @@ bazel_runner_image(
     name = "runner",
     bazel_version = "7.4.1",
     repository = "ghcr.io/fastverk/bazel-runner",
+)
+
+# Linux GitHub Actions runner image: same pinned Bazel surface, separate
+# published repo so reusable workflows can share one image reference.
+github_actions_runner_image(
+    name = "github_actions_runner",
+    bazel_version = "7.4.1",
 )
 
 # CI-generation surface, re-exported from rules_gitlab — a pipeline that
@@ -31,6 +38,8 @@ build_test(
     targets = [
         ":runner",
         ":runner_tarball",
+        ":github_actions_runner",
+        ":github_actions_runner_tarball",
         ":ci",
         ":ci_validate",
     ],
