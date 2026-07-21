@@ -13,6 +13,28 @@ bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 bazel_dep(name = "rules_oci", version = "2.2.6")
 bazel_dep(name = "rules_pkg", version = "1.0.1")
 
+# Hermetic CC toolchain via zig cc. The OCI image targets pull @bazel_tools'
+# C++ launcher, and on the RBE worker there is no auto-detected host toolchain
+# to fall back on, so resolution fails outright rather than degrading:
+#
+#   While resolving toolchains for target @@bazel_tools//src/tools/launcher
+#   Analysis of target '//:ci' failed
+#
+# Same fix that turned plugin-org, plugin-planning and plugin-ws-proxy green on
+# the rail, and the toolchain botnoc (also rail-green) uses.
+bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
+
+zig_toolchains = use_extension(
+    "@hermetic_cc_toolchain//toolchain:ext.bzl",
+    "toolchains",
+)
+use_repo(zig_toolchains, "zig_sdk")
+
+register_toolchains(
+    "@zig_sdk//toolchain:linux_amd64_gnu.2.28",
+    "@zig_sdk//toolchain:linux_arm64_gnu.2.28",
+)
+
 # CI-generation surface (gitlab_ci / gitlab_job / gitlab_reference).
 #
 # The local_path_override that used to sit here is gone. Its own comment scoped
