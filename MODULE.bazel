@@ -13,14 +13,46 @@ bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 bazel_dep(name = "rules_oci", version = "2.2.6")
 bazel_dep(name = "rules_pkg", version = "1.0.1")
 
-# CI-generation surface (gitlab_ci / gitlab_job / gitlab_reference).
-# 0.2.0 ships gitlab_ci but isn't on the registry yet, so override to
-# the in-tree checkout until the Stage-2 publish.
-bazel_dep(name = "rules_gitlab", version = "0.2.0")
-local_path_override(
-    module_name = "rules_gitlab",
-    path = "../rules_gitlab",
+# Hermetic CC toolchain via zig cc. The OCI image targets pull @bazel_tools'
+# C++ launcher, and on the RBE worker there is no auto-detected host toolchain
+# to fall back on, so resolution fails outright rather than degrading:
+#
+#   While resolving toolchains for target @@bazel_tools//src/tools/launcher
+#   Analysis of target '//:ci' failed
+#
+# Same fix that turned plugin-org, plugin-planning and plugin-ws-proxy green on
+# the rail, and the toolchain botnoc (also rail-green) uses.
+bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
+
+zig_toolchains = use_extension(
+    "@hermetic_cc_toolchain//toolchain:ext.bzl",
+    "toolchains",
 )
+use_repo(zig_toolchains, "zig_sdk")
+
+register_toolchains(
+    "@zig_sdk//toolchain:linux_amd64_gnu.2.28",
+    "@zig_sdk//toolchain:linux_arm64_gnu.2.28",
+)
+
+# CI-generation surface (gitlab_ci / gitlab_job / gitlab_reference).
+#
+# The local_path_override that used to sit here is gone. Its own comment scoped
+# it — "isn't on the registry yet ... until the Stage-2 publish" — and that
+# publish has happened: the registry now serves 0.1.0 through 0.3.4, so 0.2.0
+# resolves normally.
+#
+# It could not have worked anyway. The path was "../rules_gitlab", but the repo
+# moved under fastverk/repos/, so it pointed at a directory that does not exist
+# even on a developer machine:
+#
+#   Error in fail: The repository's path is "../rules_gitlab" (absolute:
+#   ".../fastverk/rules_gitlab") but it does not exist or is not a directory.
+#
+# And a sibling-relative override can never resolve on CI or the build rail,
+# which check out one repo — so this failed every remote build regardless of
+# where the directory sat.
+bazel_dep(name = "rules_gitlab", version = "0.3.4")
 
 # Python toolchain for the rules_gitlab validate/emit py_binaries that
 # gitlab_ci's gate runs. rules_gitlab declares its python toolchain as a
@@ -28,12 +60,16 @@ local_path_override(
 # 3.12 matches the rules_gitlab tooling lock (and the host has 3.13/3.11
 # for rules_uv's lock parser).
 bazel_dep(name = "rules_python", version = "1.7.0")
+
 python = use_extension(
     "@rules_python//python/extensions:python.bzl",
     "python",
     dev_dependency = True,
 )
-python.toolchain(python_version = "3.12", is_default = True)
+python.toolchain(
+    is_default = True,
+    python_version = "3.12",
+)
 
 bazel_dep(name = "stardoc", version = "0.7.2", dev_dependency = True)
 
