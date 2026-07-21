@@ -30,7 +30,7 @@ bazel_dep(name = "rules_pkg", version = "1.0.1")
 # And a sibling-relative override can never resolve on CI or the build rail,
 # which check out one repo — so this failed every remote build regardless of
 # where the directory sat.
-bazel_dep(name = "rules_gitlab", version = "0.2.0")
+bazel_dep(name = "rules_gitlab", version = "0.3.4")
 
 # Python toolchain for the rules_gitlab validate/emit py_binaries that
 # gitlab_ci's gate runs. rules_gitlab declares its python toolchain as a
